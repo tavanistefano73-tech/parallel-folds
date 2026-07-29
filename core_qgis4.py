@@ -2583,7 +2583,7 @@ class FoldWindow(QDialog):
         if self._select_proj_tool: self.map_canvas.unsetMapTool(self._select_proj_tool)
         for l in list(self._canvas_layers):
             try: QgsProject.instance().removeMapLayer(l.id())
-            except: pass
+            except: pass # nosec B110
         super().closeEvent(event)
 
 
