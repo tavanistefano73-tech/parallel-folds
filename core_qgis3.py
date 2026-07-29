@@ -1522,7 +1522,7 @@ class FoldWindow(QDialog):
                             sym = r.symbol()
                             if sym: return sym.color().name()
                 except (ValueError, TypeError): pass
-        except Exception:
+        except Exception: # nosec B110
             pass  # Silently ignore: color extraction failed, return default
         return default_color
 
@@ -1938,7 +1938,7 @@ class FoldWindow(QDialog):
         self.map_canvas.setLayers(self._canvas_layers)
         try: 
             QgsProject.instance().removeMapLayer(layer.id())
-        except Exception:
+        except Exception: # nosec B110
             pass  # Best-effort layer removal; proceed even if removal fails
         self.map_canvas.refresh()
 
@@ -2602,7 +2602,7 @@ class FoldWindow(QDialog):
         for l in list(self._canvas_layers):
             try:
                 QgsProject.instance().removeMapLayer(l.id())
-            except Exception:
+            except Exception: # nosec B110
                 pass  # Best-effort cleanup during close; ignore removal errors
         super().closeEvent(event)
 
