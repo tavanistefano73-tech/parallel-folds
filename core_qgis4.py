@@ -3,7 +3,7 @@ import os
 import math
 import json
 
-from qgis.PyQt.QtCore import Qt, QSize, QPointF, QRectF, QMetaType
+from qgis.PyQt.QtCore import Qt, QSize, QPointF, QRectF, QMetaType, QVariant
 from qgis.PyQt.QtGui import QImage, QPainter, QColor, QPolygonF, QBrush, QPen, QFont
 from qgis.PyQt.QtSvg import QSvgGenerator
 from qgis.PyQt.QtWidgets import (
@@ -27,7 +27,22 @@ try:
     from qgis.core import Qgis
     JOIN_STYLE_ROUND = Qgis.JoinStyle.Round
 except AttributeError:
-    JOIN_STYLE_ROUND = QgsGeometry.JoinStyleRound
+    # Correggi qui inserendo JoinStyle prima di Round/JoinStyleRound
+    JOIN_STYLE_ROUND = getattr(QgsGeometry, 'JoinStyleRound', getattr(QgsGeometry.JoinStyle, 'Round', None))
+    if JOIN_STYLE_ROUND is None:
+        JOIN_STYLE_ROUND = Qgis.JoinStyle.Round
+
+# ---------------------------------------------------------------------
+# Compatibilita' tipi di campo QgsField (QVariant vs QMetaType)
+# ---------------------------------------------------------------------
+if Qgis.QGIS_VERSION_INT >= 33800:
+    FIELD_INT = QMetaType.Type.Int
+    FIELD_DOUBLE = QMetaType.Type.Double
+    FIELD_STRING = QMetaType.Type.QString
+else:
+    FIELD_INT = QVariant.Int
+    FIELD_DOUBLE = QVariant.Double
+    FIELD_STRING = QVariant.String
 
 DEFAULT_COLORS = [
     QColor(220, 50, 50), QColor(50, 180, 50), QColor(50, 50, 220),
@@ -492,7 +507,7 @@ class FoldWindow(QDialog):
             self._intersections_layer = QgsVectorLayer(f"Point?crs={crs_canvas.authid()}", "Traces Intersection Points", "memory")
             provider = self._intersections_layer.dataProvider()
             provider.addAttributes([
-                QgsField("id", QMetaType.Type.Int), QgsField("color", QMetaType.Type.QString)
+                QgsField("id", FIELD_INT), QgsField("color", FIELD_STRING)
             ])
             self._intersections_layer.updateFields()
             self._add_canvas_layer(self._intersections_layer)
@@ -1072,8 +1087,8 @@ class FoldWindow(QDialog):
             vl_struct = QgsVectorLayer(f"Point?crs={crs_auth_id}", "Structural Data Points", "memory")
             dp = vl_struct.dataProvider()
             dp.addAttributes([
-                QgsField("id", QMetaType.Type.Int), QgsField("strike", QMetaType.Type.Double),
-                QgsField("dip_dir", QMetaType.Type.Double), QgsField("dip", QMetaType.Type.Double)
+                QgsField("id", FIELD_INT), QgsField("strike", FIELD_DOUBLE),
+                QgsField("dip_dir", FIELD_DOUBLE), QgsField("dip", FIELD_DOUBLE)
             ])
             vl_struct.updateFields()
             q_feats = []
@@ -1095,8 +1110,8 @@ class FoldWindow(QDialog):
             vl_cent = QgsVectorLayer(f"Point?crs={crs_auth_id}", "Best Fit Plane Centroids", "memory")
             dp = vl_cent.dataProvider()
             dp.addAttributes([
-                QgsField("feature_id", QMetaType.Type.QString), QgsField("strike", QMetaType.Type.Double),
-                QgsField("dip_dir", QMetaType.Type.Double), QgsField("dip", QMetaType.Type.Double)
+                QgsField("feature_id", FIELD_STRING), QgsField("strike", FIELD_DOUBLE),
+                QgsField("dip_dir", FIELD_DOUBLE), QgsField("dip", FIELD_DOUBLE)
             ])
             vl_cent.updateFields()
             q_feats = []
@@ -1118,7 +1133,7 @@ class FoldWindow(QDialog):
             vl_lines = QgsVectorLayer(f"LineString?crs={crs_auth_id}", "Polylines", "memory")
             dp = vl_lines.dataProvider()
             dp.addAttributes([
-                QgsField("id", QMetaType.Type.Int), QgsField("type", QMetaType.Type.QString)
+                QgsField("id", FIELD_INT), QgsField("type", FIELD_STRING)
             ])
             vl_lines.updateFields()
             q_feats = []
@@ -1139,7 +1154,7 @@ class FoldWindow(QDialog):
             vl_poly = QgsVectorLayer(f"Polygon?crs={crs_auth_id}", "Draped Polygons", "memory")
             dp = vl_poly.dataProvider()
             dp.addAttributes([
-                QgsField("id", QMetaType.Type.Int), QgsField("color", QMetaType.Type.QString)
+                QgsField("id", FIELD_INT), QgsField("color", FIELD_STRING)
             ])
             vl_poly.updateFields()
             q_feats = []
@@ -1169,9 +1184,9 @@ class FoldWindow(QDialog):
                 vl_sec = QgsVectorLayer(f"LineString?crs={crs_auth_id}", f"Section - {sec_name}", "memory")
                 dp_sec = vl_sec.dataProvider()
                 dp_sec.addAttributes([
-                    QgsField("feature_id", QMetaType.Type.Int),
-                    QgsField("name", QMetaType.Type.QString),
-                    QgsField("sec_key", QMetaType.Type.QString)
+                    QgsField("feature_id", FIELD_INT),
+                    QgsField("name", FIELD_STRING),
+                    QgsField("sec_key", FIELD_STRING)
                 ])
                 vl_sec.updateFields()
 
@@ -1433,10 +1448,10 @@ class FoldWindow(QDialog):
                 self._output_layer = QgsVectorLayer(f"LineString?crs={crs_canvas}", "Parallel & Structural Layers", "memory")
                 dp_fold = self._output_layer.dataProvider()
                 dp_fold.addAttributes([
-                    QgsField("layer_name", QMetaType.Type.QString),
-                    QgsField("layer_idx", QMetaType.Type.Int),
-                    QgsField("thickness", QMetaType.Type.Double),
-                    QgsField("color", QMetaType.Type.QString)
+                    QgsField("layer_name", FIELD_STRING),
+                    QgsField("layer_idx", FIELD_INT),
+                    QgsField("thickness", FIELD_DOUBLE),
+                    QgsField("color", FIELD_STRING)
                 ])
                 self._output_layer.updateFields()
                 self._add_canvas_layer(self._output_layer)
@@ -1676,14 +1691,12 @@ class FoldWindow(QDialog):
         self.dem_layer = QgsProject.instance().mapLayer(dem_layer_id)
         self.trace_layer = QgsProject.instance().mapLayer(trace_layer_id)
         features = list(self.trace_layer.getFeatures())
-       
+        
         self.trace_layer = QgsProject.instance().mapLayer(trace_layer_id)
         if getattr(self, "_last_trace_id", None) != trace_layer_id:
             self._clear_projection_layers()
         self._last_trace_id = trace_layer_id
-       
-       
-       
+        
         if not features: return
 
         geom = QgsGeometry(features[0].geometry()); geom.get().dropZValue(); geom.get().dropMValue()
@@ -1717,7 +1730,7 @@ class FoldWindow(QDialog):
         self._profile_layer = QgsVectorLayer(f"LineString?crs={crs_canvas.authid()}", "Topographic Profile with Grid", "memory")
         provider = self._profile_layer.dataProvider()
         provider.addAttributes([
-            QgsField("id", QMetaType.Type.Int), QgsField("label", QMetaType.Type.QString), QgsField("color", QMetaType.Type.QString)
+            QgsField("id", FIELD_INT), QgsField("label", FIELD_STRING), QgsField("color", FIELD_STRING)
         ])
         self._profile_layer.updateFields()
 
@@ -1848,7 +1861,7 @@ class FoldWindow(QDialog):
             self._proj_intersection_lines_layer = QgsVectorLayer(f"LineString?crs={crs_canvas.authid()}", "Projected Traces Intersections", "memory")
             provider = self._proj_intersection_lines_layer.dataProvider()
             provider.addAttributes([
-                QgsField("id", QMetaType.Type.Int), QgsField("label", QMetaType.Type.QString), QgsField("color", QMetaType.Type.QString)
+                QgsField("id", FIELD_INT), QgsField("label", FIELD_STRING), QgsField("color", FIELD_STRING)
             ])
             self._proj_intersection_lines_layer.updateFields()
 
@@ -1968,7 +1981,7 @@ class FoldWindow(QDialog):
         self._strikes_layer = QgsVectorLayer(f"LineString?crs={crs_canvas.authid()}", "Projected Bedding", "memory")
         provider = self._strikes_layer.dataProvider()
         provider.addAttributes([
-            QgsField("id", QMetaType.Type.Int), QgsField("label", QMetaType.Type.QString), QgsField("color", QMetaType.Type.QString)
+            QgsField("id", FIELD_INT), QgsField("label", FIELD_STRING), QgsField("color", FIELD_STRING)
         ])
         self._strikes_layer.updateFields()
 
@@ -2074,7 +2087,7 @@ class FoldWindow(QDialog):
         temp_layer = QgsVectorLayer(f"LineString?crs={crs_canvas.authid()}", "Temp", "memory")
         temp_prov = temp_layer.dataProvider()
         temp_prov.addAttributes([
-            QgsField("id", QMetaType.Type.Int), QgsField("label", QMetaType.Type.QString), QgsField("color", QMetaType.Type.QString)
+            QgsField("id", FIELD_INT), QgsField("label", FIELD_STRING), QgsField("color", FIELD_STRING)
         ])
         temp_layer.updateFields()
 
@@ -2129,7 +2142,7 @@ class FoldWindow(QDialog):
         self._traces_layer = QgsVectorLayer(f"LineString?crs={crs_canvas.authid()}", "Projected Traces", "memory")
         provider = self._traces_layer.dataProvider()
         provider.addAttributes([
-            QgsField("id", QMetaType.Type.Int), QgsField("label", QMetaType.Type.QString), QgsField("color", QMetaType.Type.QString)
+            QgsField("id", FIELD_INT), QgsField("label", FIELD_STRING), QgsField("color", FIELD_STRING)
         ])
         self._traces_layer.updateFields()
         provider.addFeatures(projected_lines_features)
@@ -2205,7 +2218,7 @@ class FoldWindow(QDialog):
         crs = self.map_canvas.mapSettings().destinationCrs().authid()
         self._ghost_layer = QgsVectorLayer(f"LineString?crs={crs}", "Profile Base Elements (Ghost)", "memory")
         provider = self._ghost_layer.dataProvider()
-        provider.addAttributes([QgsField("element_type", QMetaType.Type.Int)])
+        provider.addAttributes([QgsField("element_type", FIELD_INT)])
         self._ghost_layer.updateFields()
 
         feat_topo = QgsFeature(self._ghost_layer.fields())
@@ -2427,10 +2440,10 @@ class FoldWindow(QDialog):
                 self._output_layer = QgsVectorLayer(f"LineString?crs={crs}", "Parallel & Structural Layers", "memory")
                 dp = self._output_layer.dataProvider()
                 dp.addAttributes([
-                    QgsField("layer_name", QMetaType.Type.QString),
-                    QgsField("layer_idx", QMetaType.Type.Int),
-                    QgsField("thickness", QMetaType.Type.Double),
-                    QgsField("color", QMetaType.Type.QString)
+                    QgsField("layer_name", FIELD_STRING),
+                    QgsField("layer_idx", FIELD_INT),
+                    QgsField("thickness", FIELD_DOUBLE),
+                    QgsField("color", FIELD_STRING)
                 ])
                 self._output_layer.updateFields()
                 self._add_canvas_layer(self._output_layer)
@@ -2535,14 +2548,29 @@ class FoldWindow(QDialog):
 
             err, err_msg, _, _ = QgsVectorFileWriter.writeAsVectorFormatV3(layer, path, transform_context, options)
             if err == QgsVectorFileWriter.WriterError.NoError:
+                                # CODICE CORRETTO:
                 try:
                     from qgis.PyQt.QtXml import QDomDocument
                     doc = QDomDocument()
-                    layer.exportNamedStyle(doc, QgsMapLayer.AllStyleCategories)
+                    
+                    # Gestione compatibilità enumerazione StyleCategory
+                    if hasattr(QgsMapLayer, 'StyleCategory'):
+                        style_category = QgsMapLayer.StyleCategory.AllStyleCategories
+                    else:
+                        style_category = getattr(QgsMapLayer, 'AllStyleCategories', None)
+                        
+                    layer.exportNamedStyle(doc, style_category)
                     style_qml = doc.toString()
                     if style_qml:
                         layer.saveStyleToDatabase(name, "Default", "Workspace style", style_qml, True, "")
-                except Exception: pass  # nosec B110
+                
+                except Exception as err_msg:
+                    from qgis.core import QgsMessageLog, Qgis
+                    QgsMessageLog.logMessage(
+                        f"Failed to save layer style to GeoPackage: {err_msg}",
+                        "ParallelFolds",
+                        Qgis.MessageLevel.Warning
+                    )
             else: errors.append(f"Layer '{name}' failed: {err_msg}")
 
         if not errors:
@@ -2608,7 +2636,7 @@ class FoldWindow(QDialog):
                     self._output_layer = QgsVectorLayer(f"LineString?crs={crs}", "Parallel & Structural Layers", "memory")
                     dp = self._output_layer.dataProvider()
                     dp.addAttributes([
-                        QgsField("distance", QMetaType.Type.Double), QgsField("order", QMetaType.Type.Int), QgsField("color", QMetaType.Type.QString)
+                        QgsField("distance", FIELD_DOUBLE), QgsField("order", FIELD_INT), QgsField("color", FIELD_STRING)
                     ])
                     self._output_layer.updateFields()
                     new_feats = []
@@ -2763,8 +2791,6 @@ class FoldWindow(QDialog):
 
                 fields_names = f.fields().names()
                 label = str(f["label"]) if "label" in fields_names and f["label"] is not None else ""
-                
-                
                 if label and f["id"] == 5:
                     vertices = list(geom.vertices())
                     if vertices:
@@ -2782,7 +2808,6 @@ class FoldWindow(QDialog):
 
                 fields_names = f.fields().names()
                 label = str(f["label"]) if "label" in fields_names and f["label"] is not None else ""
-
                 if label:
                     vertices = list(geom.vertices())
                     if vertices:
@@ -2860,7 +2885,7 @@ class ParallelFoldTool(QgsMapTool):
         self.clear_points(); self.vertices = list(nv)
         for pt in self.vertices:
             m = QgsVertexMarker(self.canvas); m.setCenter(pt)
-            m.setIconType(QgsVertexMarker.ICON_CIRCLE); m.setIconSize(8); m.setPenWidth(2); m.setColor(QColor(55,138,221))
+            m.setIconType(QgsVertexMarker.IconType.ICON_CIRCLE); m.setIconSize(8); m.setPenWidth(2); m.setColor(QColor(55,138,221))
             self.vertex_markers.append(m)
         self.recalc_and_draw()
 
@@ -2895,13 +2920,13 @@ class ParallelFoldTool(QgsMapTool):
                 
                 if best_idx != -1:
                     self.vertices.insert(best_idx, pt_xy)
-                    m = QgsVertexMarker(self.canvas); m.setCenter(pt_xy); m.setIconType(QgsVertexMarker.ICON_CIRCLE)
+                    m = QgsVertexMarker(self.canvas); m.setCenter(pt_xy); m.setIconType(QgsVertexMarker.IconType.ICON_CIRCLE)
                     m.setIconSize(8); m.setColor(QColor(55,138,221)); self.vertex_markers.insert(best_idx, m)
                     inserted = True
 
         if not inserted:
             self.vertices.append(pt_xy)
-            m = QgsVertexMarker(self.canvas); m.setCenter(pt_xy); m.setIconType(QgsVertexMarker.ICON_CIRCLE)
+            m = QgsVertexMarker(self.canvas); m.setCenter(pt_xy); m.setIconType(QgsVertexMarker.IconType.ICON_CIRCLE)
             m.setIconSize(8); m.setColor(QColor(55,138,221)); self.vertex_markers.append(m)
             
         self.recalc_and_draw()
@@ -2990,7 +3015,7 @@ class AdvancedEditSavedLineTool(QgsMapTool):
             layer.selectByIds([bf.id()]); self.feat = bf; self.clear_markers()
             for p in bf.geometry().vertices():
                 m = QgsVertexMarker(self.canvas); m.setCenter(QgsPointXY(p))
-                m.setIconType(QgsVertexMarker.ICON_BOX); m.setColor(QColor(230, 20, 150))
+                m.setIconType(QgsVertexMarker.IconType.ICON_BOX); m.setColor(QColor(230, 20, 150))
                 self.markers.append(m)
         else:
             layer.removeSelection(); self.feat = None; self.clear_markers()
@@ -3027,6 +3052,7 @@ class AdvancedEditSavedLineTool(QgsMapTool):
             self.dragged_marker, self.dragged_idx = None, None
             
             self.window._sync_output_layer_to_store()
+
 
 class SelectProjectedLineTool(QgsMapTool):
     def __init__(self, canvas, window):

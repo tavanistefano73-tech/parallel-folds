@@ -27,17 +27,13 @@ try:
     from qgis.core import Qgis
     JOIN_STYLE_ROUND = Qgis.JoinStyle.Round
 except AttributeError:
-    JOIN_STYLE_ROUND = QgsGeometry.JoinStyleRound
+    JOIN_STYLE_ROUND = getattr(QgsGeometry, 'JoinStyleRound', getattr(QgsGeometry.JoinStyle, 'Round', None))
+    if JOIN_STYLE_ROUND is None:
+        JOIN_STYLE_ROUND = Qgis.JoinStyle.Round
 
 # ---------------------------------------------------------------------
 # Compatibilita' tipi di campo QgsField (QVariant vs QMetaType)
 # ---------------------------------------------------------------------
-# Il costruttore QgsField(name, QMetaType.Type, ...) e' stato introdotto
-# solo in QGIS 3.38: sulle versioni precedenti (3.4 - 3.37, es. le LTR
-# 3.16/3.28/3.34) quell'overload non esiste e passare un QMetaType.Type
-# solleva un TypeError. QVariant.Type invece funziona su tutte le 3.x
-# (deprecato ma presente anche in 3.38+), quindi e' la scelta sicura
-# per questo modulo (usato solo per QGIS < 4.0).
 if Qgis.QGIS_VERSION_INT >= 33800:
     FIELD_INT = QMetaType.Type.Int
     FIELD_DOUBLE = QMetaType.Type.Double
@@ -87,8 +83,8 @@ class StereoplotCanvas(QWidget):
             return
 
         side = int(r * 2)
-        img = QImage(side, side, QImage.Format_ARGB32)
-        img.fill(Qt.transparent)
+        img = QImage(side, side, QImage.Format.Format_ARGB32)
+        img.fill(Qt.GlobalColor.transparent)
         
         cos_max = 0.95
         max_count = 0
@@ -194,8 +190,8 @@ class StereoplotCanvas(QWidget):
             if self._contour_image:
                 painter.drawImage(QPointF(cx - r, cy - r), self._contour_image)
 
-        pen_grid = QPen(QColor(160, 160, 160), 1, Qt.DashLine)
-        pen_border = QPen(Qt.black, 2)
+        pen_grid = QPen(QColor(160, 160, 160), 1, Qt.PenStyle.DashLine)
+        pen_border = QPen(Qt.GlobalColor.black, 2)
         
         painter.setPen(pen_border)
         painter.drawEllipse(QPointF(cx, cy), r, r)
@@ -229,7 +225,7 @@ class StereoplotCanvas(QWidget):
                 painter.drawPolyline(poly)
 
         if self.show_poles:
-            painter.setPen(QPen(Qt.red, 5))
+            painter.setPen(QPen(Qt.GlobalColor.red, 5))
             for x, y, z in self.pole_vectors:
                 px, py = project_vector(x, y, z)
                 painter.drawEllipse(QPointF(px, py), 3, 3)
@@ -242,15 +238,15 @@ class StereoplotCanvas(QWidget):
             bz = -math.sin(pl_rad)
             px, py = project_vector(bx, by, bz)
             
-            painter.setPen(QPen(Qt.black, 2))
+            painter.setPen(QPen(Qt.GlobalColor.black, 2))
             painter.setBrush(QBrush(QColor(255, 235, 59)))
             painter.drawEllipse(QPointF(px, py), 7, 7)
-            painter.setPen(QPen(Qt.black, 4))
+            painter.setPen(QPen(Qt.GlobalColor.black, 4))
             painter.drawPoint(QPointF(px, py))
 
     def paintEvent(self, event):
         painter = QPainter(self)
-        painter.setRenderHint(QPainter.Antialiasing)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
         self.draw_stereonet(painter, self.width(), self.height())
         painter.end()
 
@@ -334,8 +330,8 @@ class StereoplotDialog(QDialog):
         generator.setViewBox(QRectF(0, 0, export_size.width(), export_size.height()))
 
         painter = QPainter(generator)
-        painter.setRenderHint(QPainter.Antialiasing)
-        painter.fillRect(QRectF(0, 0, export_size.width(), export_size.height()), Qt.white)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        painter.fillRect(QRectF(0, 0, export_size.width(), export_size.height()), Qt.GlobalColor.white)
         self.stereoplot_canvas.draw_stereonet(painter, export_size.width(), export_size.height())
         painter.end()
         QMessageBox.information(self, "Exported", f"Stereoplot saved:\n{path}")
@@ -453,7 +449,7 @@ class FoldWindow(QDialog):
         intersections_found = []
 
         for layer_id, layer in QgsProject.instance().mapLayers().items():
-            if not isinstance(layer, QgsVectorLayer) or layer.geometryType() != QgsWkbTypes.LineGeometry:
+            if not isinstance(layer, QgsVectorLayer) or layer.geometryType() != QgsWkbTypes.GeometryType.LineGeometry:
                 continue
             
             if layer == self.trace_layer or layer in [self._profile_layer, self._output_layer, self._traces_layer, self._ghost_layer, self._strikes_layer, getattr(self, "_proj_intersection_lines_layer", None)]:
@@ -501,7 +497,7 @@ class FoldWindow(QDialog):
                         qz = val if (ok_sample and not math.isnan(val)) else 0.0
                         intersections_found.append((dist_s_curr, qz, "#00838f"))
 
-        if self._intersections_layer and self._intersections_layer.geometryType() != QgsWkbTypes.PointGeometry:
+        if self._intersections_layer and self._intersections_layer.geometryType() != QgsWkbTypes.GeometryType.PointGeometry:
             self._remove_canvas_layer(self._intersections_layer)
             self._intersections_layer = None
 
@@ -581,7 +577,7 @@ class FoldWindow(QDialog):
         
         self.setWindowTitle("Parallel Folds & Structural Tool")
         self.resize(1150, 850)
-        self.setAttribute(Qt.WA_DeleteOnClose)
+        self.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
 
         self.dem_layer = None
         self.trace_layer = None
@@ -1011,8 +1007,8 @@ class FoldWindow(QDialog):
 
         # SEPARATOR LINE
         linea_sep = QFrame()
-        linea_sep.setFrameShape(QFrame.HLine)
-        linea_sep.setFrameShadow(QFrame.Sunken)
+        linea_sep.setFrameShape(QFrame.Shape.HLine)
+        linea_sep.setFrameShadow(QFrame.Shadow.Sunken)
         layout.addWidget(linea_sep)
 
         # 3. GRAPHICAL EXPORT SECTION
@@ -1259,7 +1255,7 @@ class FoldWindow(QDialog):
         global_feature_counter = 1
 
         for layer_id, layer in QgsProject.instance().mapLayers().items():
-            if not isinstance(layer, QgsVectorLayer) or layer.geometryType() != QgsWkbTypes.LineGeometry:
+            if not isinstance(layer, QgsVectorLayer) or layer.geometryType() != QgsWkbTypes.GeometryType.LineGeometry:
                 continue
             
             if layer in [self._profile_layer, self._output_layer, self._traces_layer, self._ghost_layer, self._strikes_layer, getattr(self, "_proj_intersection_lines_layer", None), getattr(self, "_intersections_layer", None)]:
@@ -1700,7 +1696,6 @@ class FoldWindow(QDialog):
             self._clear_projection_layers()
         self._last_trace_id = trace_layer_id
         
-        
         if not features: return
 
         geom = QgsGeometry(features[0].geometry()); geom.get().dropZValue(); geom.get().dropMValue()
@@ -1749,10 +1744,10 @@ class FoldWindow(QDialog):
         label_settings = QgsPalLayerSettings()
         label_settings.fieldName = "label"
         text_format = QgsTextFormat(); text_format.setFont(QFont("Arial"))
-        text_format.setSizeUnit(QgsUnitTypes.RenderPixels); text_format.setSize(12.0); text_format.setColor(QColor("#333333"))
+        text_format.setSizeUnit(QgsUnitTypes.RenderUnit.RenderPixels); text_format.setSize(12.0); text_format.setColor(QColor("#333333"))
         label_settings.setFormat(text_format)
-        label_settings.placement = QgsPalLayerSettings.Line
-        label_settings.placementFlags = QgsPalLayerSettings.BelowLine
+        label_settings.placement = QgsPalLayerSettings.Placement.Line
+        label_settings.placementFlags = QgsPalLayerSettings.LinePlacementFlags.BelowLine
         label_settings.obstacle = False; label_settings.allowDegradedPlacement = True
         label_settings.priority = 10; label_settings.dist = 2.0 
         
@@ -1885,11 +1880,11 @@ class FoldWindow(QDialog):
 
             label_settings = QgsPalLayerSettings()
             label_settings.fieldName = "label"
-            text_format = QgsTextFormat(); text_format.setFont(QFont("Arial")); text_format.setSizeUnit(QgsUnitTypes.RenderPixels) 
+            text_format = QgsTextFormat(); text_format.setFont(QFont("Arial")); text_format.setSizeUnit(QgsUnitTypes.RenderUnit.RenderPixels) 
             text_format.setSize(12.0); text_format.setColor(QColor("#d32f2f"))
             label_settings.setFormat(text_format)
-            label_settings.placement = QgsPalLayerSettings.Line
-            label_settings.placementFlags = QgsPalLayerSettings.AboveLine
+            label_settings.placement = QgsPalLayerSettings.Placement.Line
+            label_settings.placementFlags = QgsPalLayerSettings.LinePlacementFlags.AboveLine
             label_settings.obstacle = False; label_settings.allowDegradedPlacement = True; label_settings.priority = 8; label_settings.dist = 2.0 
             self._proj_intersection_lines_layer.setLabeling(QgsVectorLayerSimpleLabeling(label_settings))
             self._proj_intersection_lines_layer.setLabelsEnabled(True)
@@ -2014,11 +2009,11 @@ class FoldWindow(QDialog):
 
         label_settings = QgsPalLayerSettings()
         label_settings.fieldName = "label"
-        text_format = QgsTextFormat(); text_format.setFont(QFont("Arial")); text_format.setSizeUnit(QgsUnitTypes.RenderPixels) 
+        text_format = QgsTextFormat(); text_format.setFont(QFont("Arial")); text_format.setSizeUnit(QgsUnitTypes.RenderUnit.RenderPixels) 
         text_format.setSize(10.0); text_format.setColor(QColor("#2e7d32"))
         label_settings.setFormat(text_format)
-        label_settings.placement = QgsPalLayerSettings.Line
-        label_settings.placementFlags = QgsPalLayerSettings.AboveLine
+        label_settings.placement = QgsPalLayerSettings.Placement.Line
+        label_settings.placementFlags = QgsPalLayerSettings.LinePlacementFlags.AboveLine
         label_settings.obstacle = False; label_settings.dist = 4.0 
         self._strikes_layer.setLabeling(QgsVectorLayerSimpleLabeling(label_settings))
         self._strikes_layer.setLabelsEnabled(True)
@@ -2161,11 +2156,11 @@ class FoldWindow(QDialog):
 
         label_settings = QgsPalLayerSettings()
         label_settings.fieldName = "label"
-        text_format = QgsTextFormat(); text_format.setFont(QFont("Arial")); text_format.setSizeUnit(QgsUnitTypes.RenderPixels) 
+        text_format = QgsTextFormat(); text_format.setFont(QFont("Arial")); text_format.setSizeUnit(QgsUnitTypes.RenderUnit.RenderPixels) 
         text_format.setSize(10.0); text_format.setColor(QColor("#333333"))
         label_settings.setFormat(text_format)
-        label_settings.placement = QgsPalLayerSettings.Line
-        label_settings.placementFlags = QgsPalLayerSettings.AboveLine
+        label_settings.placement = QgsPalLayerSettings.Placement.Line
+        label_settings.placementFlags = QgsPalLayerSettings.LinePlacementFlags.AboveLine
         label_settings.obstacle = False; label_settings.dist = 2.0 
         self._traces_layer.setLabeling(QgsVectorLayerSimpleLabeling(label_settings))
         self._traces_layer.setLabelsEnabled(True)
@@ -2282,7 +2277,7 @@ class FoldWindow(QDialog):
             name_text = layer_names[i] if i < len(layer_names) else f"Layer {i+1}"
             
             item_name = QTableWidgetItem(name_text)
-            item_name.setFlags(item_name.flags() | Qt.ItemIsEditable)
+            item_name.setFlags(item_name.flags() | Qt.ItemFlag.ItemIsEditable)
             
             current_col = self.get_boundary_color(i)
             item_name.setBackground(QBrush(current_col))
@@ -2294,7 +2289,7 @@ class FoldWindow(QDialog):
             self.table.setItem(i, 0, item_name)
             
             item_thick = QTableWidgetItem(str(t))
-            item_thick.setFlags(item_thick.flags() | Qt.ItemIsEditable)
+            item_thick.setFlags(item_thick.flags() | Qt.ItemFlag.ItemIsEditable)
             self.table.setItem(i, 1, item_thick)
             
         self.table.blockSignals(False)
@@ -2547,7 +2542,7 @@ class FoldWindow(QDialog):
         for name, layer in layers_to_export.items():
             options = QgsVectorFileWriter.SaveVectorOptions()
             options.fileEncoding = "UTF-8"; options.layerName = name; options.datasourceOptions = ["FORCE_FID=YES"]
-            options.actionOnExistingFile = QgsVectorFileWriter.CreateOrOverwriteFile if is_first_layer else QgsVectorFileWriter.CreateOrOverwriteLayer
+            options.actionOnExistingFile = QgsVectorFileWriter.ActionOnExistingFile.CreateOrOverwriteFile if is_first_layer else QgsVectorFileWriter.ActionOnExistingFile.CreateOrOverwriteLayer
             is_first_layer = False
 
             err, err_msg, _, _ = QgsVectorFileWriter.writeAsVectorFormatV3(layer, path, transform_context, options)
@@ -2555,11 +2550,30 @@ class FoldWindow(QDialog):
                 try:
                     from qgis.PyQt.QtXml import QDomDocument
                     doc = QDomDocument()
-                    layer.exportNamedStyle(doc, QgsMapLayer.AllStyleCategories)
+                    
+                    # Sintassi aggiornata con StyleCategory
+                    if hasattr(QgsMapLayer, 'StyleCategory'):
+                        style_category = QgsMapLayer.StyleCategory.AllStyleCategories
+                    else:
+                        style_category = getattr(QgsMapLayer, 'AllStyleCategories', None)
+                        
+                    layer.exportNamedStyle(doc, style_category)
                     style_qml = doc.toString()
                     if style_qml:
                         layer.saveStyleToDatabase(name, "Default", "Workspace style", style_qml, True, "")
-                except Exception: pass  # nosec B110
+                
+                except Exception as err_msg:
+                    from qgis.core import QgsMessageLog, Qgis
+                    QgsMessageLog.logMessage(
+                        f"Failed to save layer style to GeoPackage: {err_msg}",
+                        "ParallelFolds",
+                        Qgis.MessageLevel.Warning
+                    )
+                
+                
+                
+                
+                
             else: errors.append(f"Layer '{name}' failed: {err_msg}")
 
         if not errors:
@@ -2820,8 +2834,8 @@ class FoldWindow(QDialog):
         
         p = QPainter()
         if p.begin(gen):
-            p.setRenderHint(QPainter.Antialiasing, True)
-            p.fillRect(QRectF(0, 0, pw, ph), QBrush(Qt.white))
+            p.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+            p.fillRect(QRectF(0, 0, pw, ph), QBrush(Qt.GlobalColor.white))
             p.setPen(QPen(QColor(180, 180, 180), 0.15))
             p.drawRect(QRectF(to_svg(x0, y1), to_svg(x1, y0)))
             
@@ -2867,14 +2881,14 @@ class ParallelFoldTool(QgsMapTool):
         self.vertices = []
         for m in self.vertex_markers: self.canvas.scene().removeItem(m)
         self.vertex_markers = []
-        for rb in self.rubber_bands: rb.reset(QgsWkbTypes.LineGeometry)
+        for rb in self.rubber_bands: rb.reset(QgsWkbTypes.GeometryType.LineGeometry)
         self.rubber_bands = []
 
     def set_vertices(self, nv):
         self.clear_points(); self.vertices = list(nv)
         for pt in self.vertices:
             m = QgsVertexMarker(self.canvas); m.setCenter(pt)
-            m.setIconType(QgsVertexMarker.ICON_CIRCLE); m.setIconSize(8); m.setPenWidth(2); m.setColor(QColor(55,138,221))
+            m.setIconType(QgsVertexMarker.IconType.ICON_CIRCLE); m.setIconSize(8); m.setPenWidth(2); m.setColor(QColor(55,138,221))
             self.vertex_markers.append(m)
         self.recalc_and_draw()
 
@@ -2890,7 +2904,7 @@ class ParallelFoldTool(QgsMapTool):
         return None
 
     def canvasPressEvent(self, e):
-        if e.button() == Qt.RightButton: return
+        if e.button() == Qt.MouseButton.RightButton: return
         idx = self._hit_test(e.pos())
         if idx is not None: self.dragged_index = idx; return
         
@@ -2909,13 +2923,13 @@ class ParallelFoldTool(QgsMapTool):
                 
                 if best_idx != -1:
                     self.vertices.insert(best_idx, pt_xy)
-                    m = QgsVertexMarker(self.canvas); m.setCenter(pt_xy); m.setIconType(QgsVertexMarker.ICON_CIRCLE)
+                    m = QgsVertexMarker(self.canvas); m.setCenter(pt_xy); m.setIconType(QgsVertexMarker.IconType.ICON_CIRCLE)
                     m.setIconSize(8); m.setColor(QColor(55,138,221)); self.vertex_markers.insert(best_idx, m)
                     inserted = True
 
         if not inserted:
             self.vertices.append(pt_xy)
-            m = QgsVertexMarker(self.canvas); m.setCenter(pt_xy); m.setIconType(QgsVertexMarker.ICON_CIRCLE)
+            m = QgsVertexMarker(self.canvas); m.setCenter(pt_xy); m.setIconType(QgsVertexMarker.IconType.ICON_CIRCLE)
             m.setIconSize(8); m.setColor(QColor(55,138,221)); self.vertex_markers.append(m)
             
         self.recalc_and_draw()
@@ -2943,7 +2957,7 @@ class ParallelFoldTool(QgsMapTool):
             self.window._sync_output_layer_to_store()
 
     def recalc_and_draw(self):
-        for rb in self.rubber_bands: rb.reset(QgsWkbTypes.LineGeometry)
+        for rb in self.rubber_bands: rb.reset(QgsWkbTypes.GeometryType.LineGeometry)
         self.rubber_bands = []; self.last_boundaries = []
         if len(self.vertices) < 2: return
             
@@ -2957,7 +2971,7 @@ class ParallelFoldTool(QgsMapTool):
             geom = QgsGeometry(lg) if abs(ad) < 1e-9 else lg.offsetCurve(ad, 8, JOIN_STYLE_ROUND, 2.0)
             if not geom or geom.isEmpty(): continue
             self.last_boundaries.append((i, d, geom))
-            rb = QgsRubberBand(self.canvas, QgsWkbTypes.LineGeometry)
+            rb = QgsRubberBand(self.canvas, QgsWkbTypes.GeometryType.LineGeometry)
             rb.setToGeometry(geom, None); rb.setColor(self.window.get_boundary_color(i))
             rb.setWidth(4 if i == self.window.digitized_index else 2)
             self.rubber_bands.append(rb)
@@ -3004,7 +3018,7 @@ class AdvancedEditSavedLineTool(QgsMapTool):
             layer.selectByIds([bf.id()]); self.feat = bf; self.clear_markers()
             for p in bf.geometry().vertices():
                 m = QgsVertexMarker(self.canvas); m.setCenter(QgsPointXY(p))
-                m.setIconType(QgsVertexMarker.ICON_BOX); m.setColor(QColor(230, 20, 150))
+                m.setIconType(QgsVertexMarker.IconType.ICON_BOX); m.setColor(QColor(230, 20, 150))
                 self.markers.append(m)
         else:
             layer.removeSelection(); self.feat = None; self.clear_markers()
@@ -3042,6 +3056,7 @@ class AdvancedEditSavedLineTool(QgsMapTool):
             
             self.window._sync_output_layer_to_store()
 
+
 class SelectProjectedLineTool(QgsMapTool):
     def __init__(self, canvas, window):
         super().__init__(canvas)
@@ -3067,5 +3082,5 @@ class SelectProjectedLineTool(QgsMapTool):
         self.canvas.refresh()
 
     def keyPressEvent(self, e):
-        if e.key() in (Qt.Key_Delete, Qt.Key_Backspace):
+        if e.key() in (Qt.Key.Key_Delete, Qt.Key.Key_Backspace):
             self.window._delete_selected_projected_line()
